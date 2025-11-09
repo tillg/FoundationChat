@@ -70,10 +70,23 @@ extension ConversationDetailView {
 
       do {
         for try await part in stream {
-          newMessage.content = part.content ?? ""
-          newMessage.attachementTitle = part.metadata?.title
-          newMessage.attachementThumbnail = part.metadata?.thumbnail
-          newMessage.attachementDescription = part.metadata?.description
+          // part.content is MessageGenerable.PartiallyGenerated
+          // Access its properties which are optional as they're being generated
+          if let content = part.content.content {
+            newMessage.content = content
+          }
+          // Handle metadata if available
+          if let metadata = part.content.metadata {
+            if let title = metadata.title {
+              newMessage.attachementTitle = title
+            }
+            if let thumbnail = metadata.thumbnail {
+              newMessage.attachementThumbnail = thumbnail
+            }
+            if let description = metadata.description {
+              newMessage.attachementDescription = description
+            }
+          }
           scrollPosition.scrollTo(edge: .bottom)
         }
         try modelContext.save()
@@ -87,7 +100,8 @@ extension ConversationDetailView {
     if let stream = await chatEngine.summarize() {
       do {
         for try await part in stream {
-          conversation.summary = part
+          // For String streaming, part.content is the String
+          conversation.summary = part.content
         }
         try modelContext.save()
       } catch {

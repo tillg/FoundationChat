@@ -14,9 +14,9 @@ struct WebAnalyserTool: Tool {
     let url: String
   }
 
-  func call(arguments: Arguments) async throws -> ToolOutput {
+  func call(arguments: Arguments) async throws -> String {
     guard let url = URL(string: arguments.url) else {
-      return ToolOutput("Invalid URL provided: \(arguments.url)")
+      return "Invalid URL provided: \(arguments.url)"
     }
     let (data, _) = try await session.data(from: url)
     let html = String(data: data, encoding: .utf8)!
@@ -24,9 +24,12 @@ struct WebAnalyserTool: Tool {
     let title = try soup.title()
     let thumbnail = try soup.select("meta[property='og:image']").attr("content")
     let description = try soup.select("meta[name='description']").attr("content")
-    return ToolOutput(
-      GeneratedContent(
-        WebPageMetadata(
-          title: title, thumbnail: thumbnail, description: description)))
+
+    return """
+    Webpage Analysis Results:
+    Title: \(title)
+    Thumbnail: \(thumbnail.isEmpty ? "none" : thumbnail)
+    Description: \(description.isEmpty ? "none" : description)
+    """
   }
 }

@@ -83,9 +83,9 @@ class StreamingStructuredModel {
                 to: "Create a detailed recipe for \(dish)",
                 generating: Recipe.self
             )
-            
+
             for try await partial in stream {
-                partialRecipe = partial
+                partialRecipe = partial.content
             }
         } catch {
             print("Error: \(error)")
