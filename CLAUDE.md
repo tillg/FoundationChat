@@ -4,7 +4,71 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-FoundationChat is a SwiftUI application demonstrating Apple's Foundation Models framework for on-device AI. The project targets iOS 26.0+ and showcases chat functionality using Apple Intelligence.
+FoundationChat is a SwiftUI application demonstrating Apple's Foundation Models framework for on-device AI. The project targets iOS 26.0+ and showcases chat functionality using Apple Intelligence with persistent conversation storage, streaming responses, and tool integration.
+
+## Build and Run
+
+This is an Xcode project (not SPM package). Dependencies are managed via Swift Package Manager within Xcode.
+
+**Build commands:**
+```bash
+# Build via command line
+xcodebuild -project FoundationChat.xcodeproj -scheme FoundationChat -configuration Debug
+
+# Open in Xcode (preferred)
+open FoundationChat.xcodeproj
+```
+
+**Dependencies:**
+- SwiftSoup (2.8.8+) - HTML parsing for WebAnalyserTool
+
+**Platform Requirements:**
+- iOS 26.0+ / macOS 15.5+ / visionOS 26.0+
+- Device with Apple Intelligence enabled (Settings > Apple Intelligence)
+- Simulator not recommended - use physical device for best performance
+
+## Codebase Architecture
+
+**Pattern:** MVVM with SwiftUI's modern data flow
+
+**Key Components:**
+
+1. **Models/** - Data layer
+   - `SwiftData/` - Persistent storage with @Model macro
+     - `Conversation.swift` - Container for messages with cascade delete
+     - `Message.swift` - Individual messages with rich attachments
+   - `Generable/` - Foundation Models structured output types
+     - `MessageGenerable.swift` - @Generable for AI responses
+     - `WebPageMetadata.swift` - Structured web content data
+
+2. **Views/** - UI layer
+   - `ConversationsList/` - Main navigation and conversation list
+   - `ConversationDetail/` - Chat interface with streaming updates
+     - `Message/` - Message display components with attachment support
+
+3. **Env/** - Business logic layer
+   - `ChatEngine.swift` - Central Foundation Models integration
+     - Manages LanguageModelSession lifecycle
+     - Implements streaming responses
+     - Handles context window management (3500 token safe limit)
+     - Automatic conversation summarization
+
+4. **Tools/** - Foundation Models tool implementations
+   - `WebAnalyserTool.swift` - Extracts metadata from web pages
+
+**Data Flow:**
+```
+User Input → ConversationDetailView → ChatEngine (@Environment)
+→ LanguageModelSession → Tools → @Generable Output
+→ SwiftData Persistence → UI Updates (Streaming)
+```
+
+**Key Design Patterns:**
+- Environment-based dependency injection (ChatEngine provided at navigation level)
+- SwiftData @Query for reactive data fetching
+- @Observable for state management (modern replacement for ObservableObject)
+- AsyncSequence streaming for real-time UI updates
+- @Generable for type-safe AI responses
 
 ## Framework Overview
 
@@ -190,12 +254,59 @@ Messages now support rich attachments:
 - Error messages displayed directly in the chat UI
 - Preview support for SwiftUI views
 
+## Critical Architecture Details
+
+### ChatEngine.swift - The Core Integration Point
+
+This is the central class for Foundation Models integration. Key responsibilities:
+
+1. **Session Management:**
+   - Creates LanguageModelSession with system instructions
+   - Configures WebAnalyserTool for web content extraction
+   - Manages session lifecycle per conversation
+
+2. **Context Window Management:**
+   - Tracks token usage (4096 max, 3500 safe limit)
+   - Switches between full history and summary mode automatically
+   - Estimates tokens as: `(text.split(separator: " ").count * 1.3)`
+
+3. **Streaming Implementation:**
+   - `streamResponse()` - Streams MessageGenerable with real-time updates
+   - `streamSummary()` - Generates conversation titles
+   - Both return `AsyncThrowingStream<MessageGenerable, Error>`
+
+4. **Tool Integration:**
+   - Tools configured at session creation: `[WebAnalyserTool()]`
+   - To add new tools, implement `Tool` protocol and add to array
+
+### SwiftData Relationships
+
+- `Conversation` → `Message` uses `@Relationship(deleteRule: .cascade)`
+- Deleting a conversation automatically deletes all messages
+- `@Query` in views provides automatic UI updates on data changes
+- ModelContext injected via `@Environment(\.modelContext)`
+
+### Message Attachments
+
+Messages support rich web content via optional properties:
+- `attachementTitle: String?` - Display title
+- `attachementThumbnail: String?` - Image URL
+- `attachementDescription: String?` - Content description
+
+These are populated when WebAnalyserTool extracts metadata from URLs in messages.
+
+### View Architecture
+
+- **ConversationsListView** - Creates new ChatEngine per conversation via `.environment()`
+- **ConversationDetailView** - Consumes ChatEngine with `@Environment(ChatEngine.self)`
+- Each conversation destination gets its own isolated ChatEngine instance
+
 ## Development Best Practices
 
-- When editing code, always build the project to check for errors and fix them, then rebuild.
-- Always build the project with XcodeBuildMCP to check for errors
+- When editing code, always build the project to check for errors and fix them, then rebuild
 - Use previews to test UI components without running the full app
 - Handle all async operations with proper error catching and UI feedback
+- Test on physical devices with Apple Intelligence enabled, not simulator
 
 ## Testing with Tools
 
